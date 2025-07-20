@@ -12,7 +12,7 @@ import redis
 from datetime import datetime
 
 from config import Config
-from models import TokenData, StreamEvent
+from models import TokenData, TransactionEvent
 from solana_monitor import SolanaMonitor
 from market_analyzer import MarketAnalyzer
 from stream_filter import StreamFilter
