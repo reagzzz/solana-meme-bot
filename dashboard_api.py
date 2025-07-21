@@ -1,48 +1,63 @@
-# dashboard_api.py
-from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
 from pymongo import MongoClient
-import asyncio
+from fastapi import FastAPI
+from bson.json_util import dumps
 import json
 import os
 
 app = FastAPI()
-mongo = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/"))
-db = mongo[os.getenv("MONGODB_DB_NAME", "solana_meme_bot")]
 
-html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Solana Meme Bot Dashboard</title>
-    <style>
-        body { font-family: sans-serif; }
-        #tokens { white-space: pre-wrap; }
-    </style>
-</head>
-<body>
-    <h1>📊 Solana Meme Bot - Dashboard</h1>
-    <h2>🎯 Tokens détectés</h2>
-    <div id="tokens">Chargement...</div>
-    <script>
-        const ws = new WebSocket("ws://localhost:8000/ws");
-        ws.onmessage = function(event) {
-            document.getElementById("tokens").textContent = event.data;
-        };
-    </script>
-</body>
-</html>
-"""
+# Connexion MongoDB
+client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/"))
+db = client[os.getenv("MONGODB_DB_NAME", "solana_meme_bot")]
+collection = db["detected_tokens"]
 
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    return """
+    <html>
+        <head>
+            <title>Solana Meme Bot - Dashboard</title>
+            <style>
+                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+                th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+                th { background-color: #f2f2f2; }
+            </style>
+        </head>
+        <body>
+            <h1>📊 Solana Meme Bot - Dashboard</h1>
+            <h2>🎯 Tokens détectés</h2>
+            <div id="table">Chargement...</div>
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        tokens = list(db.tokens.find().sort("detected_at", -1).limit(10))
-        data = "\n".join([f"{t['name']} - {t['symbol']} - Score: {t.get('score', 'N/A')}" for t in tokens])
-        await websocket.send_text(data)
-        await asyncio.sleep(5)
+            <script>
+                fetch("/tokens")
+                    .then(response => response.json())
+                    .then(data => {
+                        let html = '<table><tr><th>Nom</th><th>Symbole</th><th>Market Cap ($)</th><th>Volume 24h</th><th>Date</th></tr>';
+                        data.forEach(token => {
+                            html += `<tr>
+                                <td>${token.name}</td>
+                                <td>${token.symbol}</td>
+                                <td>${token.market_cap}</td>
+                                <td>${token.volume_24h}</td>
+                                <td>${new Date(token.created_at).toLocaleString()}</td>
+                            </tr>`;
+                        });
+                        html += '</table>';
+                        document.getElementById("table").innerHTML = html;
+                    })
+                    .catch(err => {
+                        document.getElementById("table").innerText = "Erreur de chargement des données.";
+                        console.error(err);
+                    });
+            </script>
+        </body>
+    </html>
+    """
+
+@app.get("/tokens")
+async def get_tokens():
+    tokens = list(collection.find().sort("created_at", -1).limit(50))
+    for token in tokens:
+        token["_id"] = str(token["_id"])  # Convertir ObjectId en str
+    return tokens
