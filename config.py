@@ -47,7 +47,6 @@ class Config:
         'min_volume_24h_usd': 10000,              # 10k USD minimum sur 24h
         'min_social_sentiment_score': 0.1,        # Sentiment légèrement positif
         'min_social_mentions_24h': 10,            # 10 mentions minimum
-        'required_keywords': ['meme', 'coin', 'solana'],
         'excluded_keywords': ['scam', 'rug', 'fake']
     }
     
